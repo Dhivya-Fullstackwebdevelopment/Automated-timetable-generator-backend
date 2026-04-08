@@ -10,7 +10,7 @@ class Subject(models.Model):
     name = models.CharField(max_length=100)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     hours_per_week = models.IntegerField()
-    semester = models.CharField(max_length=10, choices=SEMESTER_CHOICES)
+    semester = models.CharField(max_length=10, choices=SEMESTER_CHOICES, blank=True, null=True )
     year = models.IntegerField()
     is_lab = models.BooleanField(default=False)
 
