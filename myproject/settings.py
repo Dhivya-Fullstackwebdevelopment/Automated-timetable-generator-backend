@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     'department', 
     'rest_framework',
     'corsheaders',
-    'staff'
+    'staff',
+    'subject',
 ]
 
 MIDDLEWARE = [
