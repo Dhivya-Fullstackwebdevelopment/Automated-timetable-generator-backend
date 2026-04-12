@@ -5,6 +5,10 @@ from subject.models import Subject
 from staff.models import Staff
 
 
+# 👉 sample rooms (you can move this to DB later)
+ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2"]
+
+
 @api_view(['POST'])
 def generate_timetable(request):
     department = request.data.get("department")
@@ -59,7 +63,7 @@ def generate_timetable(request):
 
             assigned = None
 
-            for _ in range(10):  # try 10 times to avoid conflict
+            for _ in range(10):
                 staff = random.choice(staff_choices)
                 key = f"{staff.id}-{day}-{p}"
 
@@ -69,14 +73,20 @@ def generate_timetable(request):
                     break
 
             if assigned:
+                room = random.choice(ROOMS)
+
                 row.append({
                     "subject": sub,
-                    "staff": assigned.name
+                    "staff": assigned.name,
+                    "room": room,
+                    "year": f"{year} Year"
                 })
             else:
                 row.append({
                     "subject": "Free",
-                    "staff": ""
+                    "staff": "",
+                    "room": "",
+                    "year": f"{year} Year"
                 })
 
         timetable.append({
