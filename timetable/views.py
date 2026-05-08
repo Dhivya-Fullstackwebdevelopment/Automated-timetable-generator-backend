@@ -24,29 +24,52 @@ def generate_timetable(request):
         semester=semester
     ).order_by('id'))
 
-    staff_list = list(Staff.objects.filter(
-        department=department,
-        status="ACTIVE"
+    all_staff = list(Staff.objects.filter(
+        department=department
     ).order_by('id'))
+
+    if not subjects:
+        return Response({
+            "status": False,
+            "message": "No subjects found"
+        })
+
+    if not all_staff:
+        return Response({
+            "status": False,
+            "message": "No staff found"
+        })
 
     subject_staff_map = {}
 
     for sub in subjects:
-        matched_staff = [
-            staff for staff in staff_list
-            if sub.name.lower() in staff.subjects.lower()
+        active_staff = [
+            s for s in all_staff
+            if sub.name.lower() in (s.subjects or "").lower()
+            and s.status == "ACTIVE"
         ]
 
-        if matched_staff:
-            subject_staff_map[sub.name] = matched_staff
+        non_active_staff = [
+            s for s in all_staff
+            if sub.name.lower() in (s.subjects or "").lower()
+            and s.status != "ACTIVE"
+        ]
 
-    missing = [sub.name for sub in subjects if sub.name not in subject_staff_map]
-
-    if missing:
-        return Response({
-            "status": False,
-            "message": f"No staff for subjects: {', '.join(missing)}"
-        })
+        if active_staff:
+            subject_staff_map[sub.name] = {
+                "type": "active",   
+                "staff": active_staff
+            }
+        elif non_active_staff:
+            subject_staff_map[sub.name] = {
+                "type": "substituted",
+                "staff": non_active_staff
+            }
+        else:
+            subject_staff_map[sub.name] = {
+                "type": "substituted",
+                "staff": all_staff
+            }
 
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     periods = 8
@@ -63,7 +86,10 @@ def generate_timetable(request):
             sub_index = (d_index * periods + p) % len(subject_keys)
             sub = subject_keys[sub_index]
 
-            staff_choices = subject_staff_map[sub]
+            info = subject_staff_map[sub]
+            staff_choices = info["staff"]
+            staff_type = info["type"] 
+
             staff_index = (d_index + p) % len(staff_choices)
             staff = staff_choices[staff_index]
 
@@ -74,18 +100,26 @@ def generate_timetable(request):
                     "subject": "Free",
                     "staff": "",
                     "room": "",
-                    "year": f"{year} Year"
+                    "year": f"{year} Year",
+                    "status": "free",
+                    "substitute": None,
+                    "staff_status": None
                 })
             else:
                 used_slots[key] = True
 
                 room = ROOMS[(d_index + p) % len(ROOMS)]
 
+                status = staff_type 
+
                 row.append({
                     "subject": sub,
                     "staff": staff.name,
                     "room": room,
-                    "year": f"{year} Year"
+                    "year": f"{year} Year",
+                    "status": status,
+                    "substitute": None if status == "active" else staff.name,
+                    "staff_status": staff.status 
                 })
 
         timetable.append({
@@ -95,5 +129,6 @@ def generate_timetable(request):
 
     return Response({
         "status": True,
+        "message": "Timetable generated successfully",
         "data": timetable
     })
