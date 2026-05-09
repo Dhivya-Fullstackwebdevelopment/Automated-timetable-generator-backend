@@ -8,25 +8,50 @@ ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2"]
 
 @api_view(['POST'])
 def generate_timetable(request):
+
+    type_value = request.data.get("type")
+
     department = request.data.get("department")
     year = request.data.get("year")
     semester = request.data.get("semester")
 
-    if not department or not year or not semester:
-        return Response({
-            "status": False,
-            "message": "department, year, semester required"
-        })
+    # TYPE 1 -> only department required
+    if str(type_value) == "1":
 
-    subjects = list(Subject.objects.filter(
-        department=department,
-        year=year,
-        semester=semester
-    ).order_by('id'))
+        if not department:
+            return Response({
+                "status": False,
+                "message": "department required for type 1"
+            })
 
-    all_staff = list(Staff.objects.filter(
-        department=department
-    ).order_by('id'))
+        subject_filter = {
+            "department": department
+        }
+
+    # OTHER TYPES -> all required
+    else:
+
+        if not department or not year or not semester:
+            return Response({
+                "status": False,
+                "message": "department, year, semester required"
+            })
+
+        subject_filter = {
+            "department": department,
+            "year": year,
+            "semester": semester
+        }
+
+    subjects = list(
+        Subject.objects.filter(**subject_filter).order_by('id')
+    )
+
+    all_staff = list(
+        Staff.objects.filter(
+            department=department
+        ).order_by('id')
+    )
 
     if not subjects:
         return Response({
@@ -39,7 +64,7 @@ def generate_timetable(request):
             "status": False,
             "message": "No staff found"
         })
-
+    
     subject_staff_map = {}
 
     for sub in subjects:
