@@ -1,3 +1,4 @@
+import random
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from subject.models import Subject
@@ -66,7 +67,7 @@ def generate_timetable(request):
             "status": False,
             "message": "No staff found"
         })
-    
+
     subject_staff_map = {}
 
     for sub in subjects:
@@ -84,7 +85,7 @@ def generate_timetable(request):
 
         if active_staff:
             subject_staff_map[sub.name] = {
-                "type": "active",   
+                "type": "active",
                 "staff": active_staff
             }
         elif non_active_staff:
@@ -109,13 +110,18 @@ def generate_timetable(request):
     for d_index, day in enumerate(days):
         row = []
 
+        # Shuffle subjects differently for each day using seeded random
+        rng = random.Random(d_index + 42)
+        day_subjects = subject_keys.copy()
+        rng.shuffle(day_subjects)
+
         for p in range(periods):
-            sub_index = (d_index * periods + p) % len(subject_keys)
-            sub = subject_keys[sub_index]
+            sub_index = p % len(day_subjects)
+            sub = day_subjects[sub_index]
 
             info = subject_staff_map[sub]
             staff_choices = info["staff"]
-            staff_type = info["type"] 
+            staff_type = info["type"]
 
             staff_index = (d_index + p) % len(staff_choices)
             staff = staff_choices[staff_index]
@@ -137,7 +143,7 @@ def generate_timetable(request):
 
                 room = ROOMS[(d_index + p) % len(ROOMS)]
 
-                status = staff_type 
+                status = staff_type
 
                 row.append({
                     "subject": sub,
@@ -146,7 +152,7 @@ def generate_timetable(request):
                     "year": f"{year} Year",
                     "status": status,
                     "substitute": None if status == "active" else staff.name,
-                    "staff_status": staff.status 
+                    "staff_status": staff.status
                 })
 
         timetable.append({
@@ -159,6 +165,7 @@ def generate_timetable(request):
         "message": "Timetable generated successfully",
         "data": timetable
     })
+
 
 @api_view(['POST'])
 def admin_login(request):
