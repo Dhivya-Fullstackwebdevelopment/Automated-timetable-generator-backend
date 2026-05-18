@@ -3,8 +3,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from subject.models import Subject
 from staff.models import Staff
-from django.contrib.auth.models import User  # ← CHANGE THIS IMPORT
-
+from django.contrib.auth.models import User
 
 ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2"]
 
@@ -21,7 +20,6 @@ def admin_login(request):
             "message": "Email and password required"
         })
 
-    # Get user from auth_user table by email
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
@@ -30,14 +28,12 @@ def admin_login(request):
             "message": "Invalid login credentials"
         })
 
-    # Check password
     if not user.check_password(password):
         return Response({
             "status": False,
             "message": "Invalid login credentials"
         })
 
-    # Check is_staff = 1
     if not user.is_staff:
         return Response({
             "status": False,
@@ -93,23 +89,61 @@ def generate_timetable(request):
     subject_staff_map = {}
 
     for sub in subjects:
+
+        # Staff who can teach this subject AND are ACTIVE
         active_staff = [
             s for s in all_staff
             if sub.name.lower() in (s.subjects or "").lower()
             and s.status == "ACTIVE"
         ]
-        non_active_staff = [
+
+        # Staff who can teach this subject BUT are NOT ACTIVE (on leave etc.)
+        inactive_staff = [
             s for s in all_staff
             if sub.name.lower() in (s.subjects or "").lower()
             and s.status != "ACTIVE"
         ]
 
+        # Any other staff who can substitute (not subject-specific)
+        substitute_staff = [
+            s for s in all_staff
+            if s.status == "ACTIVE"
+            and sub.name.lower() not in (s.subjects or "").lower()
+        ]
+
         if active_staff:
-            subject_staff_map[sub.name] = {"type": "active", "staff": active_staff}
-        elif non_active_staff:
-            subject_staff_map[sub.name] = {"type": "substituted", "staff": non_active_staff}
+            # ✅ Normal case — assign active subject teacher
+            subject_staff_map[sub.name] = {
+                "type": "active",
+                "staff": active_staff,
+                "substitute": None
+            }
+        elif inactive_staff:
+            # ⚠️ Subject teacher exists but NOT ACTIVE
+            # → assign a substitute from active staff
+            if substitute_staff:
+                subject_staff_map[sub.name] = {
+                    "type": "substituted",
+                    "original_staff": inactive_staff,
+                    "staff": substitute_staff,  # substitute takes the class
+                    "substitute": substitute_staff
+                }
+            else:
+                # No active substitute available, use inactive as fallback
+                subject_staff_map[sub.name] = {
+                    "type": "substituted",
+                    "original_staff": inactive_staff,
+                    "staff": inactive_staff,
+                    "substitute": inactive_staff
+                }
         else:
-            subject_staff_map[sub.name] = {"type": "substituted", "staff": all_staff}
+            # No staff found for this subject at all → use any active staff
+            fallback = [s for s in all_staff if s.status == "ACTIVE"] or all_staff
+            subject_staff_map[sub.name] = {
+                "type": "substituted",
+                "staff": fallback,
+                "substitute": fallback
+            }
 
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     periods = 8
@@ -134,19 +168,34 @@ def generate_timetable(request):
 
             if key in used_slots:
                 row.append({
-                    "subject": "Free", "staff": "", "room": "",
-                    "year": f"{year} Year", "status": "free",
-                    "substitute": None, "staff_status": None
+                    "subject": "Free",
+                    "staff": "",
+                    "room": "",
+                    "year": f"{year} Year",
+                    "status": "free",
+                    "substitute": None,
+                    "staff_status": None
                 })
             else:
                 used_slots[key] = True
+
+                # If substituted, show original staff name in substitute field
+                original = info.get("original_staff")
+                substitute_name = None
+                if staff_type == "substituted":
+                    substitute_name = staff.name  # who is actually taking the class
+                    original_name = original[0].name if original else None
+                else:
+                    original_name = None
+
                 row.append({
                     "subject": sub,
-                    "staff": staff.name,
+                    "staff": staff.name,           # who is actually in class
                     "room": ROOMS[(d_index + p) % len(ROOMS)],
                     "year": f"{year} Year",
-                    "status": staff_type,
-                    "substitute": None if staff_type == "active" else staff.name,
+                    "status": staff_type,          # "active" or "substituted"
+                    "original_staff": original_name,   # original teacher (if on leave)
+                    "substitute": substitute_name,     # substitute teacher name
                     "staff_status": staff.status
                 })
 
