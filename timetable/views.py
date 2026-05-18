@@ -206,3 +206,55 @@ def generate_timetable(request):
         "message": "Timetable generated successfully",
         "data": timetable
     })
+
+@api_view(['GET'])
+def dashboard(request):
+
+    from department.models import Department
+    from staff.models import Staff
+    from subject.models import Subject
+
+    # Department counts
+    all_departments = Department.objects.all()
+    total_departments = all_departments.count()
+
+    # Print to see what 'type' values look like — check terminal
+    for d in all_departments:
+        print(f"Department: {d.name}, type: {d.type}")
+
+    # Staff counts
+    all_staff = Staff.objects.all()
+    active_staff = all_staff.filter(status="ACTIVE").count()
+    on_leave_staff = all_staff.filter(status="ON_LEAVE").count()
+    resigned_staff = all_staff.filter(status="RESIGNED").count()
+
+    # Subject counts
+    all_subjects = Subject.objects.all()
+    total_subjects = all_subjects.count()
+    lab_subjects = all_subjects.filter(name__icontains="lab").count()
+
+    # Build department list without filtering by type
+    department_list = list(all_departments.values("id", "name", "type"))
+
+    return Response({
+        "status": True,
+        "message": "Dashboard data fetched successfully",
+        "data": {
+            "departments": {
+                "total": total_departments,
+                "list": department_list
+            },
+            "staff": {
+                "active": active_staff,
+                "on_leave": on_leave_staff,
+                "resigned": resigned_staff
+            },
+            "subjects": {
+                "total": total_subjects,
+                "lab_subjects": lab_subjects
+            },
+            "timetables": {
+                "total": 0
+            }
+        }
+    })
