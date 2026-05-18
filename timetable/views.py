@@ -2,6 +2,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from subject.models import Subject
 from staff.models import Staff
+from django.contrib.auth import authenticate
+from rest_framework.authtoken.models import Token
 
 ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2"]
 
@@ -156,4 +158,35 @@ def generate_timetable(request):
         "status": True,
         "message": "Timetable generated successfully",
         "data": timetable
+    })
+
+@api_view(['POST'])
+def admin_login(request):
+
+    email = request.data.get("email")
+    password = request.data.get("password")
+
+    if not email or not password:
+        return Response({
+            "status": False,
+            "message": "Email and password required"
+        })
+
+    admin = AdminLogin.objects.filter(
+        email=email,
+        password=password
+    ).first()
+
+    if not admin:
+        return Response({
+            "status": False,
+            "message": "Invalid login credentials"
+        })
+
+    return Response({
+        "status": True,
+        "message": "Admin login successful",
+        "data": {
+            "email": admin.email
+        }
     })
