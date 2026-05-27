@@ -2,6 +2,7 @@ from django.db import models
 from department.models import Department
 
 class Staff(models.Model):
+
     STATUS_CHOICES = [
         ('ACTIVE', 'Active'),
         ('SICK', 'Sick Leave'),
@@ -10,14 +11,31 @@ class Staff(models.Model):
     ]
 
     name = models.CharField(max_length=100)
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE
+    )
+
     subjects = models.TextField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='ACTIVE'
+    )
+
     email = models.EmailField(
-    unique=True,
-    null=True,
-    blank=True
-)
+        unique=True,
+        null=True,
+        blank=True
+    )
+
+    password = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return self.name

@@ -295,7 +295,6 @@ def staff_login(request):
             "id": staff.id,
             "name": staff.name,
             "email": staff.email,
-            "phone": staff.phone,
             "department": staff.department.name if staff.department else "",
             "department_type": staff.department.type if staff.department else "",
             "subjects": staff.subjects,
