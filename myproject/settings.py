@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'staff',
     'subject',
+    'leave',
 ]
 
 MIDDLEWARE = [

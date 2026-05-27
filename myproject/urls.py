@@ -28,5 +28,6 @@ urlpatterns = [
     path('api/subject/', include('subject.urls')),
     path('', home), 
     path('api/timetable/', include('timetable.urls')),
+    path('api/leave/', include('leave.urls')),
 ]
 

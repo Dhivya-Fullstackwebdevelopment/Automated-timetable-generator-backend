@@ -13,7 +13,11 @@ class Staff(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     subjects = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
-    email = models.EmailField(unique=True)  
+    email = models.EmailField(
+    unique=True,
+    null=True,
+    blank=True
+)
 
     def __str__(self):
         return self.name
