@@ -258,3 +258,152 @@ def dashboard(request):
             }
         }
     })
+
+    # In timetable/views.py - add these two new APIs
+
+@api_view(['POST'])
+def staff_login(request):
+    from staff.models import Staff
+
+    email = request.data.get("email")
+    password = request.data.get("password")
+
+    if not email or not password:
+        return Response({
+            "status": False,
+            "message": "Email and password required"
+        })
+
+    try:
+        staff = Staff.objects.select_related('department').get(email=email)
+    except Staff.DoesNotExist:
+        return Response({
+            "status": False,
+            "message": "Invalid login credentials"
+        })
+
+    if staff.password != password:
+        return Response({
+            "status": False,
+            "message": "Invalid login credentials"
+        })
+
+    return Response({
+        "status": True,
+        "message": "Staff login successful",
+        "data": {
+            "id": staff.id,
+            "name": staff.name,
+            "email": staff.email,
+            "phone": staff.phone,
+            "department": staff.department.name if staff.department else "",
+            "department_type": staff.department.type if staff.department else "",
+            "subjects": staff.subjects,
+            "status": staff.status,
+            "joined": str(staff.created_at) if hasattr(staff, 'created_at') else ""
+        }
+    })
+
+
+@api_view(['GET'])
+def staff_dashboard(request, staff_id):
+    from staff.models import Staff
+    import datetime
+
+    try:
+        staff = Staff.objects.select_related('department').get(id=staff_id)
+    except Staff.DoesNotExist:
+        return Response({
+            "status": False,
+            "message": "Staff not found"
+        })
+
+    # Get today's day name
+    today = datetime.datetime.now().strftime("%A")
+
+    # Get subjects this staff teaches
+    staff_subjects = [s.strip() for s in (staff.subjects or "").split(",") if s.strip()]
+
+    # Get timetable for today for this staff
+    from subject.models import Subject
+    department_subjects = Subject.objects.filter(
+        department=staff.department
+    )
+
+    # Build today's schedule from generated timetable logic
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    periods = 8
+    ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2", "Lab 102", "Room 301"]
+
+    today_schedule = []
+    total_periods = 0
+    active_days = 0
+
+    all_staff = list(Staff.objects.filter(department=staff.department).order_by('id'))
+    all_subjects = list(department_subjects.order_by('id'))
+
+    if all_subjects and all_staff:
+        import random
+
+        subject_keys = [s.name for s in all_subjects]
+
+        for d_index, day in enumerate(days):
+            rng = random.Random(d_index + 42)
+            day_subjects = subject_keys.copy()
+            rng.shuffle(day_subjects)
+
+            day_periods = []
+            used_slots = {}
+            staff_list = [s for s in all_staff]
+
+            for p in range(periods):
+                sub_name = day_subjects[p % len(day_subjects)]
+                staff_index = (d_index + p) % len(staff_list)
+                assigned_staff = staff_list[staff_index]
+
+                if assigned_staff.id == staff.id:
+                    sub_obj = next((s for s in all_subjects if s.name == sub_name), None)
+                    is_lab = "lab" in sub_name.lower()
+                    room = ROOMS[(d_index + p) % len(ROOMS)]
+
+                    period_data = {
+                        "period": p + 1,
+                        "subject": sub_name,
+                        "year": f"{sub_obj.year} Year" if sub_obj and hasattr(sub_obj, 'year') else "",
+                        "room": room,
+                        "is_lab": is_lab
+                    }
+
+                    if day == today:
+                        today_schedule.append(period_data)
+
+                    day_periods.append(period_data)
+                    total_periods += 1
+
+            if day_periods:
+                active_days += 1
+
+    return Response({
+        "status": True,
+        "message": "Staff dashboard fetched successfully",
+        "data": {
+            "staff": {
+                "id": staff.id,
+                "name": staff.name,
+                "email": staff.email,
+                "phone": staff.phone if hasattr(staff, 'phone') else "",
+                "department": staff.department.name if staff.department else "",
+                "department_type": str(staff.department.type) if staff.department else "",
+                "status": staff.status,
+                "joined": str(staff.created_at) if hasattr(staff, 'created_at') else ""
+            },
+            "stats": {
+                "total_periods": total_periods,
+                "today_classes": len(today_schedule),
+                "subjects": len(staff_subjects),
+                "active_days": f"{active_days}/6"
+            },
+            "today": today,
+            "today_schedule": today_schedule
+        }
+    })
