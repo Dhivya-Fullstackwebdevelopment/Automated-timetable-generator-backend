@@ -281,6 +281,8 @@ def staff_login(request):
 @api_view(['GET'])
 def staff_dashboard(request, staff_id):
     from staff.models import Staff
+    from leave.models import LeaveRequest
+    from subject.models import Subject
     import datetime
 
     try:
@@ -291,66 +293,112 @@ def staff_dashboard(request, staff_id):
             "message": "Staff not found"
         })
 
-    # Get today's day name
     today = datetime.datetime.now().strftime("%A")
 
-    # Get subjects this staff teaches
-    staff_subjects = [s.strip() for s in (staff.subjects or "").split(",") if s.strip()]
+    staff_subjects = [
+        s.strip()
+        for s in (staff.subjects or "").split(",")
+        if s.strip()
+    ]
 
-    # Get timetable for today for this staff
-    from subject.models import Subject
     department_subjects = Subject.objects.filter(
         department=staff.department
     )
 
-    # Build today's schedule from generated timetable logic
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    days = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday"
+    ]
+
     periods = 8
-    ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2", "Lab 102", "Room 301"]
+
+    ROOMS = [
+        "Room 101",
+        "Room 102",
+        "Room 201",
+        "Room 202",
+        "Lab 1",
+        "Lab 2",
+        "Lab 102",
+        "Room 301"
+    ]
 
     today_schedule = []
     total_periods = 0
     active_days = 0
 
-    all_staff = list(Staff.objects.filter(department=staff.department).order_by('id'))
-    all_subjects = list(department_subjects.order_by('id'))
+    all_staff = list(
+        Staff.objects.filter(
+            department=staff.department
+        ).order_by("id")
+    )
+
+    all_subjects = list(
+        department_subjects.order_by("id")
+    )
 
     if all_subjects and all_staff:
+
         import random
 
         subject_keys = [s.name for s in all_subjects]
 
         for d_index, day in enumerate(days):
+
             rng = random.Random(d_index + 42)
+
             day_subjects = subject_keys.copy()
+
             rng.shuffle(day_subjects)
 
             day_periods = []
-            used_slots = {}
-            staff_list = [s for s in all_staff]
 
             for p in range(periods):
+
                 sub_name = day_subjects[p % len(day_subjects)]
-                staff_index = (d_index + p) % len(staff_list)
-                assigned_staff = staff_list[staff_index]
+
+                staff_index = (
+                    d_index + p
+                ) % len(all_staff)
+
+                assigned_staff = all_staff[staff_index]
 
                 if assigned_staff.id == staff.id:
-                    sub_obj = next((s for s in all_subjects if s.name == sub_name), None)
-                    is_lab = "lab" in sub_name.lower()
-                    room = ROOMS[(d_index + p) % len(ROOMS)]
+
+                    sub_obj = next(
+                        (
+                            s for s in all_subjects
+                            if s.name == sub_name
+                        ),
+                        None
+                    )
 
                     period_data = {
                         "period": p + 1,
                         "subject": sub_name,
-                        "year": f"{sub_obj.year} Year" if sub_obj and hasattr(sub_obj, 'year') else "",
-                        "room": room,
-                        "is_lab": is_lab
+                        "year": (
+                            f"{sub_obj.year} Year"
+                            if sub_obj and hasattr(sub_obj, "year")
+                            else ""
+                        ),
+                        "room": ROOMS[
+                            (d_index + p) % len(ROOMS)
+                        ]
                     }
 
                     if day == today:
-                        today_schedule.append(period_data)
+                        today_schedule.append(
+                            period_data
+                        )
 
-                    day_periods.append(period_data)
+                    day_periods.append(
+                        period_data
+                    )
+
                     total_periods += 1
 
             if day_periods:
@@ -359,24 +407,135 @@ def staff_dashboard(request, staff_id):
     return Response({
         "status": True,
         "message": "Staff dashboard fetched successfully",
+
         "data": {
+
             "staff": {
                 "id": staff.id,
                 "name": staff.name,
                 "email": staff.email,
-                "phone": staff.phone if hasattr(staff, 'phone') else "",
-                "department": staff.department.name if staff.department else "",
-                "department_type": str(staff.department.type) if staff.department else "",
+                "department": (
+                    staff.department.name
+                    if staff.department
+                    else ""
+                ),
                 "status": staff.status,
-                "joined": str(staff.created_at) if hasattr(staff, 'created_at') else ""
+                "subjects": staff.subjects,
+
+                "joined": (
+                    staff.created_at.strftime(
+                        "%d-%m-%Y"
+                    )
+                    if hasattr(
+                        staff,
+                        "created_at"
+                    )
+                    and staff.created_at
+                    else ""
+                )
             },
+
             "stats": {
                 "total_periods": total_periods,
-                "today_classes": len(today_schedule),
-                "subjects": len(staff_subjects),
+                "today_classes": len(
+                    today_schedule
+                ),
+                "subjects": len(
+                    staff_subjects
+                ),
                 "active_days": f"{active_days}/6"
             },
+
+            "leave_summary": {
+                "sick": LeaveRequest.objects.filter(
+                    staff=staff,
+                    leave_type="SICK"
+                ).count(),
+
+                "emergency": LeaveRequest.objects.filter(
+                    staff=staff,
+                    leave_type="EMERGENCY"
+                ).count(),
+
+                "resigned": LeaveRequest.objects.filter(
+                    staff=staff,
+                    leave_type="RESIGNED"
+                ).count()
+            },
+
             "today": today,
+
             "today_schedule": today_schedule
         }
+    })
+
+@api_view(["GET"])
+def staff_full_timetable(request, staff_id):
+
+    from staff.models import Staff
+    from subject.models import Subject
+
+    try:
+        staff = Staff.objects.select_related("department").get(id=staff_id)
+    except Staff.DoesNotExist:
+        return Response({"status": False, "message": "Staff not found"})
+
+    DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    PERIODS = 8
+    ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2", "Lab 102", "Room 301"]
+
+    staff_subject_names = [
+        s.strip()
+        for s in (staff.subjects or "").split(",")
+        if s.strip()
+    ]
+
+    # ✅ Fetch Subject objects to get year info
+    subject_objects = Subject.objects.filter(
+        department=staff.department,
+        name__in=staff_subject_names
+    )
+
+    # ✅ Build a lookup dict: subject name → year
+    subject_year_map = {s.name: s.year for s in subject_objects}
+
+    timetable = []
+
+    for day_index, day in enumerate(DAYS):
+        periods_data = []
+
+        for p in range(PERIODS):
+            if p < len(staff_subject_names):
+                subject_name = staff_subject_names[p % len(staff_subject_names)]
+
+                periods_data.append({
+                    "period": p + 1,
+                    "subject": subject_name,
+                    "year": f"{subject_year_map.get(subject_name, '')} Year" if subject_year_map.get(subject_name) else "",  # ✅ year added
+                    "room": ROOMS[(day_index + p) % len(ROOMS)],
+                    "staff": staff.name,
+                    "status": "CLASS"
+                })
+            else:
+                periods_data.append({
+                    "period": p + 1,
+                    "subject": "",
+                    "year": "",
+                    "room": "",
+                    "staff": "",
+                    "status": "FREE"
+                })
+
+        timetable.append({"day": day, "periods": periods_data})
+
+    return Response({
+        "status": True,
+        "message": "Full timetable fetched successfully",
+        "staff": {
+            "id": staff.id,
+            "name": staff.name,
+            "department": staff.department.name,
+            "subjects": staff.subjects
+        },
+        "data": timetable
     })
