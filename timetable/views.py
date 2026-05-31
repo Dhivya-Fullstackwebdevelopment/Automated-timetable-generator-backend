@@ -234,7 +234,6 @@ def dashboard(request):
     })
 
     # In timetable/views.py - add these two new APIs
-
 @api_view(['POST'])
 def staff_login(request):
     from staff.models import Staff
@@ -262,6 +261,14 @@ def staff_login(request):
             "message": "Invalid login credentials"
         })
 
+    # ✅ Block resigned staff from login
+    if staff.status == "RESIGNED":
+        return Response({
+            "status": False,
+            "message": f"You have been resigned. Please contact admin.",
+            "code": "RESIGNED"  # ✅ frontend can check this code
+        })
+
     return Response({
         "status": True,
         "message": "Staff login successful",
@@ -276,7 +283,6 @@ def staff_login(request):
             "joined": str(staff.created_at) if hasattr(staff, 'created_at') else ""
         }
     })
-
 
 @api_view(['GET'])
 def staff_dashboard(request, staff_id):

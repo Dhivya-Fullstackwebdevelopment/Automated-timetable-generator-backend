@@ -61,3 +61,56 @@ def leave_list(request):
         "status": True,
         "data": serializer.data
     })
+
+@api_view(['POST'])
+def resign_staff(request):
+    staff_id = request.data.get("staff_id")
+
+    if not staff_id:
+        return Response({
+            "status": False,
+            "message": "staff_id is required"
+        })
+
+    try:
+        staff = Staff.objects.get(id=staff_id)
+    except Staff.DoesNotExist:
+        return Response({
+            "status": False,
+            "message": "Staff not found"
+        })
+
+    # ✅ Check already resigned
+    if staff.status == "RESIGNED":
+        return Response({
+            "status": False,
+            "message": f"{staff.name} is already resigned"
+        })
+
+    from django.utils.timezone import now
+    today = now().date()
+
+    # ✅ Create leave record — reason, from_date, to_date are optional/auto
+    leave = LeaveRequest.objects.create(
+        staff=staff,
+        leave_type="RESIGNED",
+        from_date=today,   # auto set today
+        to_date=today,     # auto set today
+        reason=""          # blank — not needed for resign
+    )
+
+    # ✅ Update staff status
+    staff.status = "RESIGNED"
+    staff.save()
+
+    return Response({
+        "status": True,
+        "message": f"{staff.name} has been resigned successfully",
+        "data": {
+            "staff_id": staff.id,
+            "name": staff.name,
+            "department": staff.department.name if staff.department else "",
+            "status": staff.status,
+            "resigned_on": str(today),
+        }
+    })
