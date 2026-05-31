@@ -10,8 +10,10 @@ urlpatterns = [
     # timetable/urls.py
 # timetable/urls.py
 
-path(
-    "staff-full-timetable/<int:staff_id>/",
-    staff_full_timetable
-),
+# path(
+#     "staff-full-timetable/<int:staff_id>/",
+#     staff_full_timetable
+# ),
+    path('staff-full-timetable/<int:staff_id>/', staff_full_timetable),
+
 ]
