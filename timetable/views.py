@@ -10,45 +10,19 @@ ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2"]
 
 @api_view(['POST'])
 def admin_login(request):
-
     email = request.data.get("email")
     password = request.data.get("password")
 
-    if not email or not password:
+    if email == "admin@gmail.com" and password == "admin@123":
         return Response({
-            "status": False,
-            "message": "Email and password required"
-        })
-
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
-        return Response({
-            "status": False,
-            "message": "Invalid login credentials"
-        })
-
-    if not user.check_password(password):
-        return Response({
-            "status": False,
-            "message": "Invalid login credentials"
-        })
-
-    if not user.is_staff:
-        return Response({
-            "status": False,
-            "message": "You are not an admin"
+            "status": True,
+            "message": "Admin login successful"
         })
 
     return Response({
-        "status": True,
-        "message": "Admin login successful",
-        "data": {
-            "email": user.email,
-            "username": user.username
-        }
+        "status": False,
+        "message": "Invalid login credentials"
     })
-
 
 @api_view(['POST'])
 def generate_timetable(request):
