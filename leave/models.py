@@ -1,3 +1,4 @@
+# leave/models.py - YOUR EXISTING MODEL IS FINE, NO CHANGES NEEDED
 from django.db import models
 from staff.models import Staff
 
@@ -10,31 +11,13 @@ class LeaveRequest(models.Model):
         ('RESIGNED', 'Resigned'),
     ]
 
-    staff = models.ForeignKey(
-        Staff,
-        on_delete=models.CASCADE
-    )
-
-    leave_type = models.CharField(
-        max_length=20,
-        choices=LEAVE_CHOICES
-    )
-
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE)
+    leave_type = models.CharField(max_length=20, choices=LEAVE_CHOICES)
     from_date = models.DateField()
-
-    to_date = models.DateField()
-
+    to_date = models.DateField()       # ✅ already exists
     reason = models.TextField()
-
-    proof = models.ImageField(
-        upload_to='leave_proofs/',
-        null=True,
-        blank=True
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
+    proof = models.ImageField(upload_to='leave_proofs/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.staff.name} - {self.leave_type}"

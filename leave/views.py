@@ -3,25 +3,35 @@ from rest_framework.response import Response
 from .models import LeaveRequest
 from .serializers import LeaveSerializer
 from staff.models import Staff
+from django.utils import timezone
 
 
-# APPLY LEAVE
+def auto_activate_expired_leaves():
+    today = timezone.now().date()
+    expired = LeaveRequest.objects.select_related('staff').filter(
+        to_date__lt=today,
+        leave_type__in=["SICK", "EMERGENCY"],   # ✅ never reactivate RESIGNED
+        staff__status__in=["SICK", "EMERGENCY"]
+    )
+    for leave in expired:
+        leave.staff.status = "ACTIVE"
+        leave.staff.save()
+
+
 @api_view(['POST'])
 def apply_leave(request):
+
+    auto_activate_expired_leaves()  # ✅ check on every request
 
     serializer = LeaveSerializer(data=request.data)
 
     if serializer.is_valid():
-
         leave = serializer.save()
 
-        # directly update staff status
         if leave.leave_type == "SICK":
             leave.staff.status = "SICK"
-
         elif leave.leave_type == "EMERGENCY":
             leave.staff.status = "EMERGENCY"
-
         elif leave.leave_type == "RESIGNED":
             leave.staff.status = "RESIGNED"
 
@@ -38,14 +48,13 @@ def apply_leave(request):
         "errors": serializer.errors
     })
 
-# LEAVE LIST
+
 @api_view(['GET'])
 def leave_list(request):
 
-    leaves = LeaveRequest.objects.select_related(
-        'staff'
-    ).all().order_by('-id')
+    auto_activate_expired_leaves()  # ✅ check on every request
 
+    leaves = LeaveRequest.objects.select_related('staff').all().order_by('-id')
     serializer = LeaveSerializer(leaves, many=True)
 
     return Response({

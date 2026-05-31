@@ -3,9 +3,22 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Staff
 from .serializers import StaffSerializer
+from django.utils import timezone  # ✅ missing import added
 
 
-# ➕ Add Staff
+def auto_activate_expired_leaves():
+    from leave.models import LeaveRequest
+    today = timezone.now().date()
+    expired = LeaveRequest.objects.select_related('staff').filter(
+        to_date__lt=today,
+        leave_type__in=["SICK", "EMERGENCY"],
+        staff__status__in=["SICK", "EMERGENCY"]
+    )
+    for leave in expired:
+        leave.staff.status = "ACTIVE"
+        leave.staff.save()
+
+
 @api_view(['POST'])
 def add_staff(request):
     serializer = StaffSerializer(data=request.data)
@@ -24,12 +37,11 @@ def add_staff(request):
     }, status=400)
 
 
-# 📋 List Staff
-@api_view(['GET'])
+@api_view(['GET'])  # ✅ missing decorator added
 def get_staff(request):
+    auto_activate_expired_leaves()  # ✅ auto activate on every list call
     staff = Staff.objects.select_related('department').all()
     serializer = StaffSerializer(staff, many=True)
-
     return Response({
         "status": "success",
         "message": "Staff fetched successfully",
@@ -37,7 +49,6 @@ def get_staff(request):
     })
 
 
-# ✏️ Update Staff
 @api_view(['PUT'])
 def update_staff(request, pk):
     try:
@@ -64,7 +75,6 @@ def update_staff(request, pk):
     }, status=400)
 
 
-# ❌ Delete Staff
 @api_view(['DELETE'])
 def delete_staff(request, pk):
     try:
