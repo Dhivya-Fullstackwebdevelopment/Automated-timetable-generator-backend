@@ -712,6 +712,143 @@ def staff_dashboard(request, staff_id):
 #         "data": timetable
 #     })
 
+# @api_view(["GET"])
+# def staff_full_timetable(request, staff_id):
+#     import random
+#     from staff.models import Staff
+#     from subject.models import Subject
+
+#     try:
+#         staff = Staff.objects.select_related("department").get(id=staff_id)
+#     except Staff.DoesNotExist:
+#         return Response({"status": False, "message": "Staff not found"})
+
+#     DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+#     PERIODS = 8
+#     ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2", "Lab 102", "Room 301"]
+
+#     # ✅ Fetch ALL subjects for department — same as admin generate
+#     all_subjects = list(Subject.objects.filter(
+#         department=staff.department
+#     ).order_by("id"))
+
+#     all_staff = list(Staff.objects.filter(
+#         department=staff.department
+#     ).order_by("id"))
+
+#     if not all_subjects:
+#         return Response({"status": False, "message": "No subjects found"})
+
+#     if not all_staff:
+#         return Response({"status": False, "message": "No staff found"})
+
+#     # ✅ Build subject → staff map same as admin generate_timetable
+#     subject_staff_map = {}
+
+#     for sub in all_subjects:
+#         active_staff = [
+#             s for s in all_staff
+#             if sub.name.lower() in (s.subjects or "").lower()
+#             and s.status == "ACTIVE"
+#         ]
+#         inactive_staff = [
+#             s for s in all_staff
+#             if sub.name.lower() in (s.subjects or "").lower()
+#             and s.status != "ACTIVE"
+#         ]
+#         substitute_staff = [
+#             s for s in all_staff
+#             if s.status == "ACTIVE"
+#             and sub.name.lower() not in (s.subjects or "").lower()
+#         ]
+
+#         if active_staff:
+#             subject_staff_map[sub.name] = {
+#                 "type": "active",
+#                 "staff": active_staff,
+#                 "year": sub.year,
+#                 "semester": sub.semester,
+#             }
+#         elif inactive_staff:
+#             if substitute_staff:
+#                 subject_staff_map[sub.name] = {
+#                     "type": "substituted",
+#                     "original_staff": inactive_staff,
+#                     "staff": substitute_staff,
+#                     "year": sub.year,
+#                     "semester": sub.semester,
+#                 }
+#             else:
+#                 subject_staff_map[sub.name] = {
+#                     "type": "substituted",
+#                     "original_staff": inactive_staff,
+#                     "staff": inactive_staff,
+#                     "year": sub.year,
+#                     "semester": sub.semester,
+#                 }
+#         else:
+#             fallback = [s for s in all_staff if s.status == "ACTIVE"] or all_staff
+#             subject_staff_map[sub.name] = {
+#                 "type": "substituted",
+#                 "staff": fallback,
+#                 "year": sub.year,
+#                 "semester": sub.semester,
+#             }
+
+#     subject_keys = list(subject_staff_map.keys())
+#     timetable = []
+
+#     for d_index, day in enumerate(DAYS):
+#         periods_data = []
+
+#         # ✅ Same seed as admin generate_timetable
+#         rng = random.Random(d_index + 42)
+#         day_subjects = subject_keys.copy()
+#         rng.shuffle(day_subjects)
+
+#         for p in range(PERIODS):
+#             sub_name = day_subjects[p % len(day_subjects)]
+#             info = subject_staff_map[sub_name]
+#             staff_choices = info["staff"]
+
+#             assigned_staff = staff_choices[(d_index + p) % len(staff_choices)]
+
+#             if assigned_staff.id == staff.id:
+#                 periods_data.append({
+#                     "period": p + 1,
+#                     "subject": sub_name,
+#                     "year": f"{info['year']} Year" if info['year'] else "",
+#                     "semester": info['semester'],
+#                     "room": ROOMS[(d_index + p) % len(ROOMS)],
+#                     "staff": staff.name,
+#                     "status": info["type"]
+#                 })
+#             else:
+#                 periods_data.append({
+#                     "period": p + 1,
+#                     "subject": "",
+#                     "year": "",
+#                     "semester": "",
+#                     "room": "",
+#                     "staff": "",
+#                     "status": "FREE"
+#                 })
+
+#         timetable.append({"day": day, "periods": periods_data})
+
+#     return Response({
+#         "status": True,
+#         "message": "Full timetable fetched successfully",
+#         "staff": {
+#             "id": staff.id,
+#             "name": staff.name,
+#             "department": staff.department.name,
+#             "subjects": staff.subjects
+#         },
+#         "data": timetable
+#     })
+
+
 @api_view(["GET"])
 def staff_full_timetable(request, staff_id):
     import random
@@ -723,26 +860,29 @@ def staff_full_timetable(request, staff_id):
     except Staff.DoesNotExist:
         return Response({"status": False, "message": "Staff not found"})
 
+    # ✅ Optional filter params
+    semester = request.query_params.get("semester", None)  # ODD / EVEN / None
+    year = request.query_params.get("year", None)          # 1 / 2 / 3 / None
+
     DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     PERIODS = 8
     ROOMS = ["Room 101", "Room 102", "Room 201", "Room 202", "Lab 1", "Lab 2", "Lab 102", "Room 301"]
 
-    # ✅ Fetch ALL subjects for department — same as admin generate
-    all_subjects = list(Subject.objects.filter(
-        department=staff.department
-    ).order_by("id"))
+    # ✅ Build filter dynamically
+    subject_filter = {"department": staff.department}
+    if semester:
+        subject_filter["semester"] = semester  # only if passed
+    if year:
+        subject_filter["year"] = year          # only if passed
 
-    all_staff = list(Staff.objects.filter(
-        department=staff.department
-    ).order_by("id"))
+    all_subjects = list(Subject.objects.filter(**subject_filter).order_by("id"))
+    all_staff = list(Staff.objects.filter(department=staff.department).order_by("id"))
 
     if not all_subjects:
-        return Response({"status": False, "message": "No subjects found"})
-
+        return Response({"status": False, "message": f"No subjects found"})
     if not all_staff:
         return Response({"status": False, "message": "No staff found"})
 
-    # ✅ Build subject → staff map same as admin generate_timetable
     subject_staff_map = {}
 
     for sub in all_subjects:
@@ -801,7 +941,6 @@ def staff_full_timetable(request, staff_id):
     for d_index, day in enumerate(DAYS):
         periods_data = []
 
-        # ✅ Same seed as admin generate_timetable
         rng = random.Random(d_index + 42)
         day_subjects = subject_keys.copy()
         rng.shuffle(day_subjects)
@@ -810,7 +949,6 @@ def staff_full_timetable(request, staff_id):
             sub_name = day_subjects[p % len(day_subjects)]
             info = subject_staff_map[sub_name]
             staff_choices = info["staff"]
-
             assigned_staff = staff_choices[(d_index + p) % len(staff_choices)]
 
             if assigned_staff.id == staff.id:
@@ -844,6 +982,10 @@ def staff_full_timetable(request, staff_id):
             "name": staff.name,
             "department": staff.department.name,
             "subjects": staff.subjects
+        },
+        "filters": {
+            "semester": semester or "ALL",
+            "year": year or "ALL"
         },
         "data": timetable
     })
